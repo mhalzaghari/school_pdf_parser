@@ -5,19 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>School PDF Converter</title>
     <style>
-        :root {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #111111;
-            --bg-card: #1a1a1a;
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --border: #2a2a2a;
-            --success: #10b981;
-            --error: #ef4444;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -26,57 +13,59 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
+            background: #fafafa;
+            color: #1a1a1a;
             min-height: 100vh;
             line-height: 1.6;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 60px 40px;
+            padding: 80px 40px;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 60px;
+            margin-bottom: 80px;
         }
 
         h1 {
-            font-size: 3.5em;
-            margin-bottom: 16px;
+            font-size: 3.2em;
+            margin-bottom: 20px;
             font-weight: 600;
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: -0.02em;
+            color: #1a1a1a;
+            letter-spacing: -0.03em;
         }
 
         .subtitle {
-            font-size: 1.2em;
-            color: var(--text-secondary);
+            font-size: 1.15em;
+            color: #666;
             font-weight: 400;
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         .main-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 40px;
-            margin-bottom: 30px;
-            transition: all 0.3s ease;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            padding: 48px;
+            margin-bottom: 40px;
+            transition: all 0.2s ease;
         }
 
         .main-card:hover {
-            border-color: #3a3a3a;
+            border-color: #d0d0d0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .settings-bar {
             display: flex;
             gap: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #e5e5e5;
             flex-wrap: wrap;
             align-items: center;
         }
@@ -84,13 +73,14 @@
         .setting-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 10px;
         }
 
         .setting-label {
-            font-size: 0.9em;
-            color: var(--text-secondary);
+            font-size: 0.85em;
+            color: #666;
             font-weight: 500;
+            letter-spacing: 0.02em;
         }
 
         .font-selector {
@@ -100,62 +90,64 @@
 
         .font-btn {
             padding: 8px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text-secondary);
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            color: #666;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             font-size: 0.9em;
             font-weight: 500;
         }
 
         .font-btn:hover {
-            border-color: var(--accent);
-            color: var(--text-primary);
+            background: #f5f5f5;
+            border-color: #d0d0d0;
+            color: #1a1a1a;
         }
 
         .font-btn.active {
-            background: var(--accent);
-            border-color: var(--accent);
+            background: #1a1a1a;
+            border-color: #1a1a1a;
             color: white;
         }
 
         .upload-area {
-            border: 2px dashed var(--border);
-            border-radius: 12px;
+            border: 2px dashed #d0d0d0;
+            border-radius: 8px;
             padding: 60px 40px;
             text-align: center;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             cursor: pointer;
-            background: var(--bg-secondary);
+            background: #fafafa;
         }
 
         .upload-area:hover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.05);
+            border-color: #1a1a1a;
+            background: #f5f5f5;
         }
 
         .upload-area.dragover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.1);
-            transform: scale(1.01);
+            border-color: #1a1a1a;
+            background: #f0f0f0;
+            border-style: solid;
         }
 
         .upload-icon {
             font-size: 48px;
             margin-bottom: 20px;
-            opacity: 0.6;
+            opacity: 0.3;
         }
 
         .upload-text {
-            font-size: 1.1em;
+            font-size: 1em;
             margin-bottom: 8px;
-            color: var(--text-primary);
+            color: #1a1a1a;
+            font-weight: 500;
         }
 
         .upload-hint {
-            color: var(--text-secondary);
+            color: #999;
             font-size: 0.9em;
         }
 
@@ -164,11 +156,11 @@
         }
 
         .file-info {
-            margin-top: 20px;
-            padding: 20px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            border-radius: 12px;
+            margin-top: 24px;
+            padding: 16px 20px;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 8px;
             display: none;
             align-items: center;
             gap: 12px;
@@ -179,46 +171,47 @@
         }
 
         .file-name {
-            color: var(--success);
+            color: #16a34a;
             font-weight: 500;
             flex: 1;
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 12px 28px;
             border: none;
-            border-radius: 8px;
-            font-size: 1em;
+            border-radius: 6px;
+            font-size: 0.95em;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
 
         .btn-primary {
-            background: var(--accent);
+            background: #1a1a1a;
             color: white;
         }
 
         .btn-primary:hover {
-            background: var(--accent-hover);
+            background: #000;
             transform: translateY(-1px);
         }
 
         .btn-secondary {
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
+            background: white;
+            color: #1a1a1a;
+            border: 1px solid #e5e5e5;
         }
 
         .btn-secondary:hover {
-            border-color: var(--accent);
+            border-color: #1a1a1a;
+            background: #fafafa;
         }
 
         .btn:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
         }
 
@@ -235,8 +228,8 @@
         .spinner {
             width: 40px;
             height: 40px;
-            border: 3px solid var(--border);
-            border-top-color: var(--accent);
+            border: 3px solid #e5e5e5;
+            border-top-color: #1a1a1a;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             margin: 0 auto 16px;
@@ -247,7 +240,7 @@
         }
 
         .loading-text {
-            color: var(--text-secondary);
+            color: #666;
         }
 
         .results {
@@ -262,60 +255,64 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 32px;
         }
 
         .result-title {
-            font-size: 1.5em;
+            font-size: 1.4em;
             font-weight: 600;
+            color: #1a1a1a;
         }
 
         .domain-section {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 20px;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 32px;
+            margin-bottom: 24px;
         }
 
         .domain-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .domain-title {
-            font-size: 1.3em;
+            font-size: 1.2em;
             font-weight: 600;
+            color: #1a1a1a;
         }
 
         .copy-btn {
-            padding: 8px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            color: var(--text-secondary);
+            padding: 8px 18px;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            color: #666;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             font-size: 0.9em;
+            font-weight: 500;
         }
 
         .copy-btn:hover {
-            border-color: var(--accent);
-            color: var(--text-primary);
+            border-color: #1a1a1a;
+            color: #1a1a1a;
+            background: #fafafa;
         }
 
         .copy-btn.copied {
-            background: var(--success);
-            border-color: var(--success);
+            background: #16a34a;
+            border-color: #16a34a;
             color: white;
         }
 
         .table-container {
             overflow-x: auto;
-            background: white;
-            border-radius: 8px;
+            background: #fafafa;
+            border-radius: 6px;
             padding: 20px;
         }
 
