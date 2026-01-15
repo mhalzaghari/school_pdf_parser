@@ -88,26 +88,29 @@ def index():
 def convert_pdf():
     try:
         if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
+            return jsonify({'success': False, 'error': 'No file uploaded'}), 400
 
         file = request.files['file']
         if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
 
         if not file.filename.endswith('.pdf'):
-            return jsonify({'error': 'File must be a PDF'}), 400
+            return jsonify({'success': False, 'error': 'File must be a PDF'}), 400
+
+        # Get font size from request (default to 10pt)
+        font_size = request.form.get('font_size', '10')
 
         # Parse PDF
         pdf_data = parse_bdi3_pdf(file)
 
-        # Generate HTML tables
-        html_tables = generate_html_tables(pdf_data)
+        # Generate HTML tables with font size
+        html_tables = generate_html_tables(pdf_data, font_size)
 
         # Return HTML
-        return jsonify({'html': html_tables})
+        return jsonify({'success': True, 'html': html_tables})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def parse_bdi3_pdf(file):
     """Parse BDI-3 PDF and extract domain, subdomain, skill, and mastery data."""
@@ -245,7 +248,7 @@ def parse_bdi3_pdf(file):
 
     return data
 
-def generate_html_tables(data):
+def generate_html_tables(data, font_size='10'):
     """Generate HTML tables for display on the website."""
     html_output = []
 
@@ -256,14 +259,15 @@ def generate_html_tables(data):
 
         # Start wrapper div for this domain
         domain_id = domain_name.lower().replace('-', '_')
-        table_html = f'<div class="domain-table-wrapper" id="domain_{domain_id}">\n'
+        table_html = f'<div class="domain-section" id="domain_{domain_id}">\n'
         table_html += f'  <div class="domain-header">\n'
-        table_html += f'    <h2>{domain_name}</h2>\n'
-        table_html += f'    <button class="copy-domain-btn" onclick="copyDomain(\'{domain_id}\')">📋 Copy {domain_name} Table</button>\n'
+        table_html += f'    <h3 class="domain-title">{domain_name}</h3>\n'
+        table_html += f'    <button class="copy-btn" data-domain="{domain_id}">Copy Table</button>\n'
         table_html += f'  </div>\n'
+        table_html += f'  <div class="table-container">\n'
 
-        # Start table for this domain
-        table_html += '  <table class="result-table">\n'
+        # Start table for this domain with inline font-size style
+        table_html += f'  <table class="result-table" style="font-size: {font_size}pt;">\n'
 
         # Domain name header (spans all columns)
         table_html += '    <thead>\n'
@@ -303,6 +307,7 @@ def generate_html_tables(data):
 
         table_html += '    </tbody>\n'
         table_html += '  </table>\n'
+        table_html += '  </div>\n'
         table_html += '</div>\n'
 
         html_output.append(table_html)
