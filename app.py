@@ -259,58 +259,51 @@ def generate_html_tables(data, font_size='10'):
 
         # Start wrapper div for this domain
         domain_id = domain_name.lower().replace('-', '_')
-        table_html = f'<div class="domain-section" id="domain_{domain_id}">\n'
-        table_html += f'  <div class="domain-header">\n'
-        table_html += f'    <h3 class="domain-title">{domain_name}</h3>\n'
-        table_html += f'    <button class="copy-btn" data-domain="{domain_id}">Copy Table</button>\n'
-        table_html += f'  </div>\n'
-        table_html += f'  <div class="table-container">\n'
+        domain_html = f'<div class="domain-section" id="domain_{domain_id}">\n'
+        domain_html += f'  <div class="domain-header">\n'
+        domain_html += f'    <h3 class="domain-title">{domain_name}</h3>\n'
+        domain_html += f'    <button class="copy-btn" data-domain="{domain_id}">Copy Table</button>\n'
+        domain_html += f'  </div>\n'
+        domain_html += f'  <div class="table-container">\n'
 
-        # Start table for this domain with inline font-size style
-        table_html += f'  <table class="result-table" style="font-size: {font_size}pt;">\n'
+        # Create ONE table for the entire domain with all subdomains
+        domain_html += f'  <table class="result-table" style="font-size: {font_size}pt;">\n'
+        domain_html += '    <tbody>\n'
 
-        # Domain name header (spans all columns)
-        table_html += '    <thead>\n'
-        table_html += '      <tr class="domain-title-row">\n'
-        table_html += f'        <th colspan="4">{domain_name}</th>\n'
-        table_html += '      </tr>\n'
-        table_html += '    </thead>\n'
-        table_html += '    <tbody>\n'
-
-        # Add data rows for each subdomain
+        # Add each subdomain as rows within the same table
         for subdomain_name, skills in data[domain_name].items():
             if not skills:
                 continue
 
-            # Subdomain header row
-            table_html += '      <tr class="subdomain-header-row">\n'
-            table_html += f'        <td class="subdomain-name">{subdomain_name}</td>\n'
-            table_html += '        <td class="mastery-header">Mastered</td>\n'
-            table_html += '        <td class="mastery-header">Emerging</td>\n'
-            table_html += '        <td class="mastery-header">Future Learning Objective</td>\n'
-            table_html += '      </tr>\n'
+            # Header row with subdomain name and mastery columns
+            domain_html += '      <tr class="subdomain-header-row">\n'
+            domain_html += f'        <td class="subdomain-name">{subdomain_name}</td>\n'
+            domain_html += '        <td class="mastery-header">Mastered</td>\n'
+            domain_html += '        <td class="mastery-header">Emerging</td>\n'
+            domain_html += '        <td class="mastery-header">Future Learning Objective</td>\n'
+            domain_html += '      </tr>\n'
 
             # Add skill rows
             for skill_data in skills:
-                table_html += '      <tr>\n'
-                table_html += f'        <td class="skill-cell">{skill_data["skill"]}</td>\n'
+                domain_html += '      <tr>\n'
+                domain_html += f'        <td class="skill-cell">{skill_data["skill"]}</td>\n'
 
                 # Add X mark in appropriate column
                 mastered = 'X' if skill_data['mastery'] == 'MASTERED' else ''
                 emerging = 'X' if skill_data['mastery'] == 'EMERGING' else ''
                 future = 'X' if skill_data['mastery'] == 'FUTURE LEARNING OBJECTIVE' else ''
 
-                table_html += f'        <td class="mastery-cell">{mastered}</td>\n'
-                table_html += f'        <td class="mastery-cell">{emerging}</td>\n'
-                table_html += f'        <td class="mastery-cell">{future}</td>\n'
-                table_html += '      </tr>\n'
+                domain_html += f'        <td class="mastery-cell">{mastered}</td>\n'
+                domain_html += f'        <td class="mastery-cell">{emerging}</td>\n'
+                domain_html += f'        <td class="mastery-cell">{future}</td>\n'
+                domain_html += '      </tr>\n'
 
-        table_html += '    </tbody>\n'
-        table_html += '  </table>\n'
-        table_html += '  </div>\n'
-        table_html += '</div>\n'
+        domain_html += '    </tbody>\n'
+        domain_html += '  </table>\n'
+        domain_html += '  </div>\n'
+        domain_html += '</div>\n'
 
-        html_output.append(table_html)
+        html_output.append(domain_html)
 
     return '\n'.join(html_output)
 

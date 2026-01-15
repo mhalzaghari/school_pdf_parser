@@ -133,6 +133,12 @@
             border-style: solid;
         }
 
+        .upload-area.file-added {
+            border-color: #16a34a;
+            background: #f0fdf4;
+            border-style: solid;
+        }
+
         .upload-icon {
             font-size: 40px;
             margin-bottom: 16px;
@@ -279,15 +285,15 @@
             background: white;
             border: 1px solid #e5e5e5;
             border-radius: 8px;
-            padding: 32px;
-            margin-bottom: 24px;
+            padding: 20px;
+            margin-bottom: 20px;
         }
 
         .domain-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
         }
 
         .domain-title {
@@ -324,59 +330,65 @@
             overflow-x: auto;
             background: #fafafa;
             border-radius: 6px;
-            padding: 20px;
+            padding: 10px;
         }
 
         .result-table {
             width: 100%;
             border-collapse: collapse;
             background: white;
+            margin-bottom: 0;
+            line-height: 1.1;
         }
 
         .result-table .domain-title-row th {
             background: white;
-            padding: 12px;
+            padding: 2px 4px;
             text-align: center;
             font-weight: bold;
             color: black;
             border: 1px solid black;
+            line-height: 1.1;
         }
 
         .result-table .subdomain-header-row {
             background: white;
         }
 
-        .result-table .subdomain-name {
-            padding: 8px;
+        .result-table .subdomain-header-row td {
+            padding: 2px 4px;
             text-align: left;
-            font-style: italic;
             font-weight: normal;
             color: black;
             border: 1px solid black;
+            line-height: 1.1;
+        }
+
+        .result-table .subdomain-name {
+            font-style: italic;
         }
 
         .result-table .mastery-header {
-            padding: 8px;
             text-align: center;
             font-weight: normal;
-            color: black;
-            border: 1px solid black;
         }
 
         .result-table .skill-cell {
-            padding: 8px;
+            padding: 2px 4px;
             text-align: left;
             font-weight: normal;
             color: black;
             border: 1px solid black;
+            line-height: 1.1;
         }
 
         .result-table .mastery-cell {
-            padding: 8px;
+            padding: 2px 4px;
             text-align: center;
             font-weight: normal;
             color: black;
             border: 1px solid black;
+            line-height: 1.1;
         }
 
         .result-table tbody tr {
@@ -500,6 +512,7 @@
                 selectedFile = file;
                 fileName.textContent = file.name;
                 fileInfo.classList.add('show');
+                uploadArea.classList.add('file-added');
                 document.getElementById('convertBtn').disabled = false;
                 document.getElementById('resetBtn').style.display = 'inline-flex';
             } else {
@@ -544,6 +557,7 @@
             fileInput.value = '';
             fileName.textContent = 'No file selected';
             fileInfo.classList.remove('show');
+            uploadArea.classList.remove('file-added');
             document.getElementById('convertBtn').disabled = true;
             document.getElementById('resetBtn').style.display = 'none';
             document.getElementById('results').classList.remove('show');
@@ -558,6 +572,14 @@
             document.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => copyTable(btn));
             });
+
+            // Scroll to the first table
+            setTimeout(() => {
+                const firstDomain = document.querySelector('.domain-section');
+                if (firstDomain) {
+                    firstDomain.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
         }
 
         // Copy individual table
