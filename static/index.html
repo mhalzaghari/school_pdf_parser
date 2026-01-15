@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BDI-3 PDF to Word Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: #f8f9ff;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 13px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e9;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .file-name {
+            color: #2e7d32;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .file-size {
+            color: #66bb6a;
+            font-size: 13px;
+        }
+        
+        .convert-btn {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: none;
+        }
+        
+        .convert-btn.show {
+            display: block;
+        }
+        
+        .convert-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .convert-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            text-align: center;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .results-container {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .results-container.show {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .copy-btn, .reset-btn {
+            padding: 10px 20px;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn {
+            background: #4caf50;
+        }
+
+        .copy-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .copy-btn.copied {
+            background: #2196f3;
+        }
+
+        .reset-btn {
+            background: #f44336;
+            margin-left: 10px;
+        }
+
+        .reset-btn:hover {
+            background: #da190b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .domain-table-wrapper {
+            margin-bottom: 40px;
+        }
+
+        .domain-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .domain-header h2 {
+            background: white;
+            color: black;
+            padding: 0;
+            margin: 0;
+            font-size: 12pt;
+            font-weight: bold;
+        }
+
+        .copy-domain-btn {
+            padding: 8px 16px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-domain-btn:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .copy-domain-btn.copied {
+            background: #2196f3;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        /* Domain title row (spans all columns) */
+        .result-table .domain-title-row th {
+            background: white;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            color: black;
+            border: 1px solid black;
+            font-size: 10pt;
+        }
+
+        /* Subdomain header row */
+        .result-table .subdomain-header-row {
+            background: white;
+        }
+
+        .result-table .subdomain-name {
+            padding: 8px;
+            text-align: left;
+            font-style: italic;
+            font-weight: normal;
+            color: black;
+            border: 1px solid black;
+            font-size: 10pt;
+        }
+
+        .result-table .mastery-header {
+            padding: 8px;
+            text-align: center;
+            font-weight: normal;
+            color: black;
+            border: 1px solid black;
+            font-size: 10pt;
+        }
+
+        /* Skill rows */
+        .result-table .skill-cell {
+            padding: 8px;
+            text-align: left;
+            font-weight: normal;
+            color: black;
+            border: 1px solid black;
+            font-size: 10pt;
+        }
+
+        .result-table .mastery-cell {
+            padding: 8px;
+            text-align: center;
+            font-weight: normal;
+            color: black;
+            border: 1px solid black;
+            font-size: 10pt;
+        }
+
+        .result-table tbody tr {
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 BDI-3 PDF Converter</h1>
+        <p class="subtitle">Convert BDI-3 Family Report PDFs to formatted Word documents</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Click to upload or drag and drop</div>
+            <div class="upload-hint">BDI-3 Family Report PDF only</div>
+            <input type="file" id="fileInput" accept=".pdf">
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+        </div>
+        
+        <button class="convert-btn" id="convertBtn">
+            Convert & Display Results
+        </button>
+
+        <div class="message" id="message"></div>
+
+        <div class="results-container" id="resultsContainer">
+            <div class="results-header">
+                <div class="results-title">📊 Assessment Results</div>
+                <div class="results-actions">
+                    <button class="copy-btn" id="copyBtn">📋 Copy All Tables</button>
+                    <button class="reset-btn" id="resetBtn">🔄 Start Fresh</button>
+                </div>
+            </div>
+            <div id="resultsContent"></div>
+        </div>
+
+        <div class="footer">
+            Upload your BDI-3 PDF and get formatted assessment results
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const convertBtn = document.getElementById('convertBtn');
+        const message = document.getElementById('message');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsContent = document.getElementById('resultsContent');
+        const copyBtn = document.getElementById('copyBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        let selectedFile = null;
+        
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFile(e.dataTransfer.files[0]);
+        });
+        
+        function handleFile(file) {
+            if (!file) return;
+            
+            if (!file.name.endsWith('.pdf')) {
+                showMessage('Please select a PDF file', 'error');
+                return;
+            }
+            
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            fileInfo.classList.add('show');
+            convertBtn.classList.add('show');
+            hideMessage();
+        }
+        
+        // Convert button
+        convertBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            convertBtn.disabled = true;
+            convertBtn.innerHTML = '<span class="spinner"></span>Converting...';
+            hideMessage();
+            resultsContainer.classList.remove('show');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Conversion failed');
+                }
+
+                const data = await response.json();
+
+                // Display results
+                resultsContent.innerHTML = data.html;
+                resultsContainer.classList.add('show');
+
+                showMessage('✅ Results generated successfully!', 'success');
+
+                // Scroll to results
+                resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            } catch (error) {
+                showMessage(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.innerHTML = 'Convert & Display Results';
+            }
+        });
+
+        // Copy all tables button
+        copyBtn.addEventListener('click', async () => {
+            try {
+                // Get all tables as HTML
+                const tables = resultsContent.innerHTML;
+
+                // Create a temporary element to copy from
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = tables;
+                document.body.appendChild(tempDiv);
+
+                // Select and copy
+                const range = document.createRange();
+                range.selectNode(tempDiv);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+
+                document.execCommand('copy');
+
+                window.getSelection().removeAllRanges();
+                document.body.removeChild(tempDiv);
+
+                // Show feedback
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✅ Copied All!';
+                copyBtn.classList.add('copied');
+
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+
+            } catch (error) {
+                showMessage('❌ Failed to copy. Please select and copy manually.', 'error');
+            }
+        });
+
+        // Copy individual domain table
+        window.copyDomain = function(domainId) {
+            try {
+                const domainWrapper = document.getElementById('domain_' + domainId);
+                const table = domainWrapper.querySelector('.result-table');
+
+                // Create a temporary element to copy from
+                const tempDiv = document.createElement('div');
+                tempDiv.appendChild(table.cloneNode(true));
+                document.body.appendChild(tempDiv);
+
+                // Select and copy
+                const range = document.createRange();
+                range.selectNode(tempDiv);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+
+                document.execCommand('copy');
+
+                window.getSelection().removeAllRanges();
+                document.body.removeChild(tempDiv);
+
+                // Show feedback on the button
+                const btn = domainWrapper.querySelector('.copy-domain-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                btn.classList.add('copied');
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('copied');
+                }, 2000);
+
+            } catch (error) {
+                showMessage('❌ Failed to copy. Please select and copy manually.', 'error');
+            }
+        };
+
+        // Reset button - start fresh
+        resetBtn.addEventListener('click', () => {
+            // Clear file selection
+            selectedFile = null;
+            fileInput.value = '';
+
+            // Hide file info
+            fileInfo.classList.remove('show');
+
+            // Hide convert button
+            convertBtn.classList.remove('show');
+
+            // Hide results
+            resultsContainer.classList.remove('show');
+            resultsContent.innerHTML = '';
+
+            // Hide messages
+            hideMessage();
+
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message show ${type}`;
+        }
+
+        function hideMessage() {
+            message.className = 'message';
+        }
+    </script>
+</body>
+</html>
+

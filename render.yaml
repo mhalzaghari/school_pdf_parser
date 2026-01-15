@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: bdi3-converter
+    env: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 5000
+
