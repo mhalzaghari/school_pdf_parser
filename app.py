@@ -97,8 +97,8 @@ def convert_pdf():
         if not file.filename.endswith('.pdf'):
             return jsonify({'success': False, 'error': 'File must be a PDF'}), 400
 
-        # Get font size from request (default to 10pt)
-        font_size = request.form.get('font_size', '10')
+        # Get font size from request (default to 8pt Arial)
+        font_size = request.form.get('font_size', '8')
 
         # Parse PDF
         pdf_data = parse_bdi3_pdf(file)
@@ -185,9 +185,6 @@ def parse_bdi3_pdf(file):
                     for row in table:
                         if not row or len(row) < 2:
                             continue
-
-                        # Debug: print row structure to understand table format
-                        print(f"DEBUG Row ({len(row)} cols): {row[:5]}")  # Print first 5 columns
 
                         # Handle varying column counts - join first columns if subdomain is split
                         if len(row) >= 4:
@@ -328,7 +325,7 @@ def parse_bdi3_pdf(file):
 
     return data
 
-def generate_html_tables(data, font_size='10'):
+def generate_html_tables(data, font_size='8'):
     """Generate HTML tables for display on the website."""
     html_output = []
 
@@ -347,7 +344,7 @@ def generate_html_tables(data, font_size='10'):
         domain_html += f'  <div class="table-container">\n'
 
         # Create ONE table for the entire domain with all subdomains
-        domain_html += f'  <table class="result-table" style="font-size: {font_size}pt;">\n'
+        domain_html += f'  <table class="result-table" style="font-family: Arial, sans-serif; font-size: {font_size}pt;">\n'
         domain_html += '    <tbody>\n'
 
         # Add each subdomain as rows within the same table
