@@ -475,6 +475,28 @@
             });
         });
 
+        // Check server status on page load
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('/', { method: 'HEAD' });
+                if (!response.ok) {
+                    console.warn('Server may be waking up...');
+                }
+            } catch (error) {
+                console.error('Cannot connect to server:', error);
+                alert('⚠️ Cannot connect to server.\n\n' +
+                      'If using a deployed version (Render/Railway):\n' +
+                      '• The server may be waking up (wait 30-60 seconds)\n' +
+                      '• Try refreshing the page\n\n' +
+                      'If running locally:\n' +
+                      '• Make sure the Flask server is running\n' +
+                      '• Run: python app.py');
+            }
+        }
+
+        // Check on page load
+        checkServerStatus();
+
         // Upload area interactions
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -537,6 +559,10 @@
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                }
+
                 const data = await response.json();
 
                 if (data.success) {
@@ -545,7 +571,19 @@
                     alert('Error: ' + data.error);
                 }
             } catch (error) {
-                alert('Error converting PDF: ' + error.message);
+                console.error('Full error:', error);
+                let errorMessage = 'Error converting PDF: ';
+
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Cannot connect to server. Please check:\n' +
+                                  '1. Is the server running?\n' +
+                                  '2. Check your internet connection\n' +
+                                  '3. Try refreshing the page';
+                } else {
+                    errorMessage += error.message;
+                }
+
+                alert(errorMessage);
             } finally {
                 document.getElementById('loading').classList.remove('show');
             }
