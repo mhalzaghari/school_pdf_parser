@@ -112,6 +112,56 @@ def convert_pdf():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Known BDI-3 subdomain names - used to fix truncated names from PDF extraction
+BDI3_SUBDOMAINS = {
+    # Social-Emotional domain
+    "Adult Interaction": "Adult Interaction",
+    "Adult": "Adult Interaction",
+    "Peer Interaction": "Peer Interaction",
+    "Peer": "Peer Interaction",
+    "Self-Concept and Social Role": "Self-Concept and Social Role",
+    "Self-Concept and": "Self-Concept and Social Role",
+    "Self-Concept": "Self-Concept and Social Role",
+    # Adaptive domain
+    "Self-Care": "Self-Care",
+    "Personal Responsibility": "Personal Responsibility",
+    "Personal": "Personal Responsibility",
+    # Motor domain
+    "Gross Motor": "Gross Motor",
+    "Gross": "Gross Motor",
+    "Fine Motor": "Fine Motor",
+    "Fine": "Fine Motor",
+    "Perceptual Motor": "Perceptual Motor",
+    "Perceptual": "Perceptual Motor",
+    # Cognitive domain
+    "Attention and Memory": "Attention and Memory",
+    "Attention and": "Attention and Memory",
+    "Attention": "Attention and Memory",
+    "Reasoning and Academic Skills": "Reasoning and Academic Skills",
+    "Reasoning and Academic": "Reasoning and Academic Skills",
+    "Reasoning and": "Reasoning and Academic Skills",
+    "Reasoning": "Reasoning and Academic Skills",
+    "Perception and Concepts": "Perception and Concepts",
+    "Perception and": "Perception and Concepts",
+    "Perception": "Perception and Concepts",
+}
+
+def normalize_subdomain(subdomain_text):
+    """Fix truncated subdomain names using known BDI-3 subdomain list."""
+    subdomain_text = subdomain_text.strip()
+
+    # Direct match
+    if subdomain_text in BDI3_SUBDOMAINS:
+        return BDI3_SUBDOMAINS[subdomain_text]
+
+    # Try matching by prefix (for partial extractions)
+    for partial, full in BDI3_SUBDOMAINS.items():
+        if subdomain_text.startswith(partial) or partial.startswith(subdomain_text):
+            return full
+
+    # Return as-is if no match
+    return subdomain_text
+
 def parse_bdi3_pdf(file):
     """Parse BDI-3 PDF and extract domain, subdomain, skill, and mastery data."""
     data = {
@@ -133,13 +183,43 @@ def parse_bdi3_pdf(file):
                 # Process table data
                 for table in tables:
                     for row in table:
-                        if not row or len(row) < 3:
+                        if not row or len(row) < 2:
                             continue
 
-                        # Expected format: [Domain:Subdomain, Skill, Mastery]
-                        domain_subdomain = str(row[0]).strip() if row[0] else ""
-                        skill = str(row[1]).strip() if row[1] else ""
-                        mastery = str(row[2]).strip() if row[2] else ""
+                        # Debug: print row structure to understand table format
+                        print(f"DEBUG Row ({len(row)} cols): {row[:5]}")  # Print first 5 columns
+
+                        # Handle varying column counts - join first columns if subdomain is split
+                        if len(row) >= 4:
+                            # Check if column structure splits domain:subdomain across columns
+                            first_col = str(row[0]).strip() if row[0] else ""
+
+                            # If first column has domain prefix but subdomain might be in next column
+                            if ':' in first_col and any(d in first_col for d in ['Adaptive', 'Social', 'Motor', 'Cognitive']):
+                                # Domain:Subdomain might be complete or subdomain continues in col 1
+                                second_col = str(row[1]).strip() if row[1] else ""
+
+                                # Check if second column looks like continuation of subdomain (not a skill)
+                                # Skills typically are longer sentences; subdomain continuations are short
+                                if second_col and len(second_col) < 30 and not any(word in second_col.lower() for word in ['mastered', 'emerging', 'future', 'the ', 'a ', 'an ']):
+                                    # Likely subdomain continuation - join it
+                                    domain_subdomain = first_col + " " + second_col
+                                    skill = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+                                    mastery = str(row[3]).strip() if len(row) > 3 and row[3] else ""
+                                else:
+                                    domain_subdomain = first_col
+                                    skill = second_col
+                                    mastery = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+                            else:
+                                domain_subdomain = first_col
+                                skill = str(row[1]).strip() if row[1] else ""
+                                mastery = str(row[2]).strip() if len(row) > 2 and row[2] else ""
+                        elif len(row) >= 3:
+                            domain_subdomain = str(row[0]).strip() if row[0] else ""
+                            skill = str(row[1]).strip() if row[1] else ""
+                            mastery = str(row[2]).strip() if row[2] else ""
+                        else:
+                            continue
 
                         # Skip header rows
                         if 'DOMAIN' in domain_subdomain.upper() or 'SKILL' in skill.upper():
@@ -162,7 +242,7 @@ def parse_bdi3_pdf(file):
                                 else:
                                     continue
 
-                                subdomain = match.group(2).strip()
+                                subdomain = normalize_subdomain(match.group(2).strip())
 
                                 # Normalize mastery status
                                 mastery_upper = mastery.upper()
@@ -221,7 +301,7 @@ def parse_bdi3_pdf(file):
                                     else:
                                         continue
 
-                                    subdomain = match.group(2).strip()
+                                    subdomain = normalize_subdomain(match.group(2).strip())
 
                                     # Normalize mastery status
                                     mastery_upper = mastery.upper()
