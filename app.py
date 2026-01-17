@@ -373,29 +373,37 @@ def generate_domain_summary(domain_name, subdomains_data):
         if info['emerging']:
             data_section += f"EMERGING: {', '.join(info['emerging'])}\n"
 
-    # Domain-specific prompts
+    # Domain-specific prompts - plain text only, no markdown
+    format_instructions = """
+
+IMPORTANT: Write in plain text only. Do NOT use any markdown formatting like **bold**, *italics*, or bullet points. The text will be pasted directly into a Word document."""
+
     prompts = {
         "Cognitive": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Cognitive subdomain (Attention & Memory, Reasoning & Academic Skills, Perception & Concepts).
 
-Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+{format_instructions}
 
 {data_section}""",
 
         "Adaptive": f"""Create 2 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Adaptive subdomain (Self Care, Personal Responsibility).
 
-Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+{format_instructions}
 
 {data_section}""",
 
         "Motor": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Motor subdomain (Gross Motor, Fine Motor, Perceptual Motor).
 
-Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+{format_instructions}
 
 {data_section}""",
 
         "Social-Emotional": f"""Create paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Social-Emotional subdomain.
 
-Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+{format_instructions}
 
 {data_section}"""
     }
