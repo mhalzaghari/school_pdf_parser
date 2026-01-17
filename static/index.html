@@ -112,6 +112,52 @@
             color: white;
         }
 
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            display: none;
+        }
+
+        .toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: #e5e5e5;
+            border-radius: 12px;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #1a1a1a;
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        .toggle-label {
+            font-size: 0.85em;
+            color: #666;
+        }
+
         .upload-area {
             border: 2px dashed #d0d0d0;
             border-radius: 8px;
@@ -418,6 +464,68 @@
             background: white;
         }
 
+        .summaries-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .summaries-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .summary-box {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .summary-subdomain {
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #1a1a1a;
+        }
+
+        .copy-summary-btn {
+            padding: 4px 10px;
+            font-size: 0.75em;
+            background: white;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .copy-summary-btn:hover {
+            background: #f5f5f5;
+            border-color: #1a1a1a;
+        }
+
+        .copy-summary-btn.copied {
+            background: #1a1a1a;
+            color: white;
+            border-color: #1a1a1a;
+        }
+
+        .summary-text {
+            font-size: 0.85em;
+            line-height: 1.5;
+            color: #444;
+            margin: 0;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 30px 20px;
@@ -452,6 +560,14 @@
                         <button class="font-btn" data-size="14">14pt</button>
                     </div>
                 </div>
+                <div class="setting-group">
+                    <label class="setting-label">AI Summaries</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="summaryToggle" checked>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Generate parent-friendly summaries</span>
+                    </label>
+                </div>
             </div>
 
             <div class="upload-area" id="uploadArea">
@@ -472,7 +588,7 @@
 
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <div class="loading-text">Processing your PDF...</div>
+                <div class="loading-text" id="loadingText">Processing your PDF...</div>
             </div>
         </div>
 
@@ -572,6 +688,13 @@
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('font_size', selectedFontSize);
+            formData.append('include_summaries', document.getElementById('summaryToggle').checked);
+
+            const includeSummaries = document.getElementById('summaryToggle').checked;
+            const loadingText = includeSummaries
+                ? 'Processing PDF and generating AI summaries...'
+                : 'Processing your PDF...';
+            document.getElementById('loadingText').textContent = loadingText;
 
             document.getElementById('loading').classList.add('show');
             document.getElementById('results').classList.remove('show');
@@ -648,6 +771,23 @@
             const domainSection = button.closest('.domain-section');
             const table = domainSection.querySelector('.result-table');
             copyTableToClipboard(table, button);
+        }
+
+        // Copy individual summary
+        function copySummary(button) {
+            const summaryBox = button.closest('.summary-box');
+            const summaryText = summaryBox.querySelector('.summary-text').textContent;
+            const subdomainName = summaryBox.querySelector('.summary-subdomain').textContent;
+
+            navigator.clipboard.writeText(`${subdomainName}: ${summaryText}`).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 1500);
+            });
         }
 
         // Copy all tables

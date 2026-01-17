@@ -7,9 +7,19 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 import os
 import re
+from dotenv import load_dotenv
+import anthropic
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
+
+# Initialize Anthropic client (will be None if API key not set)
+anthropic_client = None
+if os.getenv('ANTHROPIC_API_KEY'):
+    anthropic_client = anthropic.Anthropic()
 
 # Age range mapping - comprehensive data from BDI-3 template
 # This maps skill descriptions to their expected age ranges
@@ -335,6 +345,80 @@ def find_age_range(skill_text):
 
     return ""  # Return empty string if no match (will be filled by subdomain grouping)
 
+
+def generate_domain_summary(domain_name, subdomains_data):
+    """Generate an AI summary for an entire domain with all its subdomains."""
+    if not anthropic_client:
+        return None
+
+    # Build data for each subdomain
+    subdomain_info = {}
+    for subdomain_name, skills in subdomains_data.items():
+        mastered = []
+        emerging = []
+        for skill in skills:
+            skill_text = skill['skill']
+            if skill['mastery'] == 'MASTERED':
+                mastered.append(skill_text)
+            elif skill['mastery'] == 'EMERGING':
+                emerging.append(skill_text)
+        subdomain_info[subdomain_name] = {'mastered': mastered, 'emerging': emerging}
+
+    # Build the data section
+    data_section = ""
+    for sub_name, info in subdomain_info.items():
+        data_section += f"\n{sub_name}:\n"
+        if info['mastered']:
+            data_section += f"MASTERED: {', '.join(info['mastered'])}\n"
+        if info['emerging']:
+            data_section += f"EMERGING: {', '.join(info['emerging'])}\n"
+
+    # Domain-specific prompts
+    prompts = {
+        "Cognitive": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Cognitive subdomain (Attention & Memory, Reasoning & Academic Skills, Perception & Concepts).
+
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+
+{data_section}""",
+
+        "Adaptive": f"""Create 2 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Adaptive subdomain (Self Care, Personal Responsibility).
+
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+
+{data_section}""",
+
+        "Motor": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Motor subdomain (Gross Motor, Fine Motor, Perceptual Motor).
+
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+
+{data_section}""",
+
+        "Social-Emotional": f"""Create paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Social-Emotional subdomain.
+
+Each paragraph should cover one subdomain. Start each paragraph with the subdomain name.
+
+{data_section}"""
+    }
+
+    prompt = prompts.get(domain_name, prompts["Social-Emotional"])
+
+    try:
+        message = anthropic_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=800,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return message.content[0].text.strip()
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        return None
+
+
 @app.route('/')
 def index():
     return app.send_static_file('index.html')
@@ -355,11 +439,14 @@ def convert_pdf():
         # Get font size from request (default to 8pt Arial)
         font_size = request.form.get('font_size', '8')
 
+        # Get AI summary option (default to true if API key is available)
+        include_summaries = request.form.get('include_summaries', 'true').lower() == 'true'
+
         # Parse PDF
         pdf_data = parse_bdi3_pdf(file)
 
-        # Generate HTML tables with font size
-        html_tables = generate_html_tables(pdf_data, font_size)
+        # Generate HTML tables with font size and optional summaries
+        html_tables = generate_html_tables(pdf_data, font_size, include_summaries)
 
         # Return HTML
         return jsonify({'success': True, 'html': html_tables})
@@ -580,13 +667,14 @@ def parse_bdi3_pdf(file):
 
     return data
 
-def generate_html_tables(data, font_size='8'):
+def generate_html_tables(data, font_size='8', include_summaries=True):
     """Generate HTML tables for display on the website.
 
     Output format matches the template:
     - Subdomain header row spanning all columns
     - Column headers: Average age skills develop | [Subdomain] | Mastered | Emerging | Future Learning Objective
     - Data rows: Age | Skill | X | X | X
+    - AI-generated summary after each subdomain (if enabled)
     """
     html_output = []
 
@@ -676,6 +764,21 @@ def generate_html_tables(data, font_size='8'):
         domain_html += '    </tbody>\n'
         domain_html += '  </table>\n'
         domain_html += '  </div>\n'
+
+        # Generate AI summary for the entire domain
+        if include_summaries:
+            summary = generate_domain_summary(domain_name, data[domain_name])
+            if summary:
+                domain_html += '  <div class="summaries-section">\n'
+                domain_html += f'    <div class="summary-box" id="summary_{domain_id}">\n'
+                domain_html += f'      <div class="summary-header">\n'
+                domain_html += f'        <span class="summary-subdomain">{domain_name} Summary</span>\n'
+                domain_html += f'        <button class="copy-summary-btn" onclick="copySummary(this)">Copy</button>\n'
+                domain_html += f'      </div>\n'
+                domain_html += f'      <div class="summary-text">{summary.replace(chr(10), "<br>")}</div>\n'
+                domain_html += f'    </div>\n'
+                domain_html += '  </div>\n'
+
         domain_html += '</div>\n'
 
         html_output.append(domain_html)
