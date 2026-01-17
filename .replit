@@ -5,6 +5,7 @@ modules = ["web", "python-3.12", "bash", "nix"]
 channel = "stable-25_05"
 
 [deployment]
+build = ["sh", "-c", "pip install -r requirements.txt"]
 run = ["sh", "-c", "python app.py"]
 deploymentTarget = "cloudrun"
 
