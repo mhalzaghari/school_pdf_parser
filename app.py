@@ -57,6 +57,13 @@ def normalize_skill_text(text):
     """Normalize skill text for better matching."""
     # Remove newlines and extra whitespace
     text = ' '.join(text.split())
+
+    # Normalize gendered pronouns to inclusive form (matches JSON)
+    text = text.replace('his or her', 'their')
+    text = text.replace('him or her', 'them')
+    text = text.replace('himself or herself', 'themselves')
+    text = text.replace('he or she', 'they')
+
     return text.strip().rstrip('.')
 
 
