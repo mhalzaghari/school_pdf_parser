@@ -252,12 +252,6 @@ def convert_pdf():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/match-stats', methods=['GET'])
-def match_stats():
-    """Return current match statistics (for debugging)."""
-    stats = get_match_stats()
-    return jsonify(stats)
-
 # Known BDI-3 subdomain names - used to fix truncated names from PDF extraction
 BDI3_SUBDOMAINS = {
     # Social-Emotional domain
