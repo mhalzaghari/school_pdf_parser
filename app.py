@@ -48,37 +48,69 @@ def load_skills_mapping():
 
 SKILL_AGE_MAP, SKILLS_STRUCTURED = load_skills_mapping()
 
+# Track unmatched skills for debugging
+unmatched_skills = []
 
-def find_age_range(skill_text):
-    """Find age range for a skill by matching against reference data from template."""
+
+def find_age_range(skill_text, track_unmatched=True):
+    """Find age range for a skill by matching against reference data from template.
+
+    Returns tuple: (age_range, match_type) where match_type is:
+    - 'exact': Exact match found
+    - 'case_insensitive': Case-insensitive match
+    - 'partial': Partial string match
+    - 'word_match': Matched by common words
+    - 'none': No match found
+    """
+    global unmatched_skills
+
     # Clean the skill text
     skill_clean = skill_text.strip().rstrip('.')
 
     # Try exact match first
     if skill_clean in SKILL_AGE_MAP:
-        return SKILL_AGE_MAP[skill_clean]['age']
+        return SKILL_AGE_MAP[skill_clean]['age'], 'exact'
 
     # Try case-insensitive exact match
     skill_lower = skill_clean.lower()
     for ref_skill, data in SKILL_AGE_MAP.items():
         if ref_skill.lower() == skill_lower:
-            return data['age']
+            return data['age'], 'case_insensitive'
 
     # Try partial match (skill contains reference or vice versa)
     for ref_skill, data in SKILL_AGE_MAP.items():
         ref_lower = ref_skill.lower()
         if ref_lower in skill_lower or skill_lower in ref_lower:
-            return data['age']
+            return data['age'], 'partial'
 
-    # Try matching by significant words (at least 5 words match)
+    # Try matching by significant words (at least 4 words match)
     skill_words = set(skill_lower.split())
     for ref_skill, data in SKILL_AGE_MAP.items():
         ref_words = set(ref_skill.lower().split())
         common = skill_words & ref_words
-        if len(common) >= 4:  # At least 4 words in common
-            return data['age']
+        if len(common) >= 4:
+            return data['age'], 'word_match'
 
-    return ""  # Return empty string if no match (will be filled by subdomain grouping)
+    # No match found - track it for debugging
+    if track_unmatched and skill_clean not in unmatched_skills:
+        unmatched_skills.append(skill_clean)
+
+    return "", 'none'
+
+
+def get_match_stats():
+    """Return statistics about skill matching."""
+    return {
+        'total_skills_in_json': len(SKILL_AGE_MAP),
+        'unmatched_skills': unmatched_skills.copy(),
+        'unmatched_count': len(unmatched_skills)
+    }
+
+
+def clear_unmatched_skills():
+    """Clear the unmatched skills list (call before each new PDF)."""
+    global unmatched_skills
+    unmatched_skills = []
 
 
 def generate_domain_summary(domain_name, subdomains_data):
@@ -185,17 +217,46 @@ def convert_pdf():
         # Get AI summary option (default to true if API key is available)
         include_summaries = request.form.get('include_summaries', 'true').lower() == 'true'
 
+        # Clear unmatched skills tracking before parsing new PDF
+        clear_unmatched_skills()
+
         # Parse PDF
         pdf_data = parse_bdi3_pdf(file)
 
         # Generate HTML tables with font size and optional summaries
         html_tables = generate_html_tables(pdf_data, font_size, include_summaries)
 
-        # Return HTML
-        return jsonify({'success': True, 'html': html_tables})
+        # Get match statistics
+        match_stats = get_match_stats()
+
+        # Count total skills extracted
+        total_skills = sum(
+            len(skills)
+            for domain in pdf_data.values()
+            for skills in domain.values()
+        )
+
+        # Return HTML with match statistics
+        return jsonify({
+            'success': True,
+            'html': html_tables,
+            'stats': {
+                'total_skills_extracted': total_skills,
+                'skills_in_database': match_stats['total_skills_in_json'],
+                'unmatched_count': match_stats['unmatched_count'],
+                'unmatched_skills': match_stats['unmatched_skills']
+            }
+        })
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/match-stats', methods=['GET'])
+def match_stats():
+    """Return current match statistics (for debugging)."""
+    stats = get_match_stats()
+    return jsonify(stats)
 
 # Known BDI-3 subdomain names - used to fix truncated names from PDF extraction
 BDI3_SUBDOMAINS = {
@@ -342,11 +403,12 @@ def parse_bdi3_pdf(file):
                                     data[domain][subdomain] = []
 
                                 if skill and len(skill) > 3:
-                                    age = find_age_range(skill)
+                                    age, match_type = find_age_range(skill)
                                     data[domain][subdomain].append({
                                         'skill': skill,
                                         'mastery': mastery_status,
-                                        'age': age
+                                        'age': age,
+                                        'match_type': match_type
                                     })
 
             # Also try text extraction with pipe separator
@@ -401,11 +463,12 @@ def parse_bdi3_pdf(file):
                                         data[domain][subdomain] = []
 
                                     if skill and len(skill) > 3:
-                                        age = find_age_range(skill)
+                                        age, match_type = find_age_range(skill)
                                         data[domain][subdomain].append({
                                             'skill': skill,
                                             'mastery': mastery_status,
-                                            'age': age
+                                            'age': age,
+                                            'match_type': match_type
                                         })
 
     return data
@@ -447,7 +510,11 @@ def generate_html_tables(data, font_size='8', include_summaries=True):
             # Sort skills by age range for proper grouping
             skills_with_ages = []
             for skill_data in skills:
-                age = find_age_range(skill_data['skill'])
+                # Use existing age if available, otherwise look it up
+                if 'age' in skill_data and skill_data['age']:
+                    age = skill_data['age']
+                else:
+                    age, _ = find_age_range(skill_data['skill'], track_unmatched=False)
                 skills_with_ages.append({**skill_data, 'age': age})
 
             # Sort by age (using a rough ordering)

@@ -713,6 +713,22 @@
 
                 if (data.success) {
                     displayResults(data.html);
+
+                    // Show match statistics in console for debugging
+                    if (data.stats) {
+                        console.log('=== PDF Extraction Statistics ===');
+                        console.log(`Skills extracted from PDF: ${data.stats.total_skills_extracted}`);
+                        console.log(`Skills in database: ${data.stats.skills_in_database}`);
+                        console.log(`Unmatched skills (no age found): ${data.stats.unmatched_count}`);
+                        if (data.stats.unmatched_skills && data.stats.unmatched_skills.length > 0) {
+                            console.log('Unmatched skills:', data.stats.unmatched_skills);
+                        }
+
+                        // Show warning if there are unmatched skills
+                        if (data.stats.unmatched_count > 0) {
+                            console.warn(`⚠️ ${data.stats.unmatched_count} skills could not be matched to age ranges. Check console for details.`);
+                        }
+                    }
                 } else {
                     alert('Error: ' + data.error);
                 }
