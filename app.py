@@ -9,6 +9,7 @@ import os
 import re
 from dotenv import load_dotenv
 import anthropic
+from rapidfuzz import fuzz, process
 
 # Load environment variables from .env file
 load_dotenv()
@@ -52,20 +53,25 @@ SKILL_AGE_MAP, SKILLS_STRUCTURED = load_skills_mapping()
 unmatched_skills = []
 
 
+def normalize_skill_text(text):
+    """Normalize skill text for better matching."""
+    # Remove newlines and extra whitespace
+    text = ' '.join(text.split())
+    return text.strip().rstrip('.')
+
+
 def find_age_range(skill_text, track_unmatched=True):
-    """Find age range for a skill by matching against reference data from template.
+    """Find age range for a skill using fuzzy matching.
 
     Returns tuple: (age_range, match_type) where match_type is:
     - 'exact': Exact match found
-    - 'case_insensitive': Case-insensitive match
-    - 'partial': Partial string match
-    - 'word_match': Matched by common words
+    - 'fuzzy': Fuzzy match (85%+ similarity)
     - 'none': No match found
     """
     global unmatched_skills
 
-    # Clean the skill text
-    skill_clean = skill_text.strip().rstrip('.')
+    # Clean and normalize the skill text
+    skill_clean = normalize_skill_text(skill_text)
 
     # Try exact match first
     if skill_clean in SKILL_AGE_MAP:
@@ -75,21 +81,15 @@ def find_age_range(skill_text, track_unmatched=True):
     skill_lower = skill_clean.lower()
     for ref_skill, data in SKILL_AGE_MAP.items():
         if ref_skill.lower() == skill_lower:
-            return data['age'], 'case_insensitive'
+            return data['age'], 'exact'
 
-    # Try partial match (skill contains reference or vice versa)
-    for ref_skill, data in SKILL_AGE_MAP.items():
-        ref_lower = ref_skill.lower()
-        if ref_lower in skill_lower or skill_lower in ref_lower:
-            return data['age'], 'partial'
+    # Use fuzzy matching - find best match above 85% similarity
+    skill_list = list(SKILL_AGE_MAP.keys())
+    result = process.extractOne(skill_clean, skill_list, scorer=fuzz.ratio)
 
-    # Try matching by significant words (at least 4 words match)
-    skill_words = set(skill_lower.split())
-    for ref_skill, data in SKILL_AGE_MAP.items():
-        ref_words = set(ref_skill.lower().split())
-        common = skill_words & ref_words
-        if len(common) >= 4:
-            return data['age'], 'word_match'
+    if result and result[1] >= 85:  # 85% similarity threshold
+        matched_skill = result[0]
+        return SKILL_AGE_MAP[matched_skill]['age'], 'fuzzy'
 
     # No match found - track it for debugging
     if track_unmatched and skill_clean not in unmatched_skills:
