@@ -8,6 +8,7 @@ import io
 import os
 import re
 import base64
+import concurrent.futures
 from dotenv import load_dotenv
 import anthropic
 from rapidfuzz import fuzz, process
@@ -320,6 +321,117 @@ def normalize_subdomain(subdomain_text):
     return subdomain_text
 
 
+def _process_page_vision(doc, page_num):
+    """Process a single PDF page with Claude Vision. Thread-safe helper.
+
+    Returns a list of parsed item dicts for this page, or empty list on error.
+    """
+    import fitz  # PyMuPDF
+
+    page = doc[page_num]
+
+    # Render page to PNG image at 200 DPI for good quality
+    mat = fitz.Matrix(200 / 72, 200 / 72)
+    pix = page.get_pixmap(matrix=mat)
+    img_bytes = pix.tobytes("png")
+    img_base64 = base64.standard_b64encode(img_bytes).decode("utf-8")
+
+    try:
+        response = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": img_base64,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": """Extract ALL rows from the item-level score table in this image.
+
+For each row, extract:
+- domain: One of "Adaptive", "Social-Emotional", "Motor", "Cognitive"
+- subdomain: The subdomain name (e.g., "Self-Care", "Gross Motor", "Attention and Memory")
+- skill: The skill description text
+- mastery: One of "MASTERED", "EMERGING", "FUTURE LEARNING OBJECTIVE"
+
+The table has columns: Domain:Subdomain | Item/Skill | Score columns with marks.
+- A mark in the first score column = MASTERED
+- A mark in the second score column = EMERGING
+- A mark in the third score column = FUTURE LEARNING OBJECTIVE
+
+If this page does NOT contain an item-level score table, return {"items": []}.
+
+Return ONLY valid JSON in this exact format, no other text:
+{"items": [{"domain": "...", "subdomain": "...", "skill": "...", "mastery": "..."}]}"""
+                        },
+                    ],
+                }
+            ],
+        )
+
+        # Parse the JSON response
+        response_text = response.content[0].text.strip()
+        # Handle potential markdown code blocks in response
+        if response_text.startswith("```"):
+            response_text = response_text.split("\n", 1)[1]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3].strip()
+
+        result = json.loads(response_text)
+
+        # Build a thread-local list of processed items
+        items = []
+        for item in result.get("items", []):
+            domain = item.get("domain", "")
+            subdomain = item.get("subdomain", "")
+            skill = item.get("skill", "")
+            mastery = item.get("mastery", "")
+
+            # Validate domain
+            valid_domains = {"Adaptive", "Social-Emotional", "Motor", "Cognitive"}
+            if domain not in valid_domains:
+                continue
+
+            # Normalize subdomain name
+            subdomain = normalize_subdomain(subdomain)
+
+            # Normalize mastery status
+            mastery_upper = mastery.upper()
+            if "MASTERED" in mastery_upper:
+                mastery_status = "MASTERED"
+            elif "EMERGING" in mastery_upper:
+                mastery_status = "EMERGING"
+            elif "FUTURE" in mastery_upper:
+                mastery_status = "FUTURE LEARNING OBJECTIVE"
+            else:
+                continue
+
+            if skill and len(skill) > 3:
+                age, match_type = find_age_range(skill)
+                items.append({
+                    "domain": domain,
+                    "subdomain": subdomain,
+                    "skill": skill,
+                    "mastery": mastery_status,
+                    "age": age,
+                    "match_type": match_type,
+                })
+
+        return items
+
+    except Exception as e:
+        print(f"Vision parsing error on page {page_num + 1}: {e}")
+        return []
+
+
 def parse_bdi3_pdf_vision(file):
     """Parse BDI-3 PDF using Claude Haiku 4.5 Vision for accurate extraction."""
     import fitz  # PyMuPDF
@@ -338,108 +450,28 @@ def parse_bdi3_pdf_vision(file):
     # Open PDF with PyMuPDF
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    # Process pages 4-13 (0-indexed: 3-12)
-    for page_num in range(3, min(13, len(doc))):
-        page = doc[page_num]
+    # Process pages 4-13 (0-indexed: 3-12) in parallel
+    page_nums = list(range(3, min(13, len(doc))))
 
-        # Render page to PNG image at 200 DPI for good quality
-        mat = fitz.Matrix(200 / 72, 200 / 72)
-        pix = page.get_pixmap(matrix=mat)
-        img_bytes = pix.tobytes("png")
-        img_base64 = base64.standard_b64encode(img_bytes).decode("utf-8")
-
-        # Send to Claude Haiku 4.5 Vision
-        try:
-            response = anthropic_client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=4096,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "image/png",
-                                    "data": img_base64,
-                                },
-                            },
-                            {
-                                "type": "text",
-                                "text": """Extract ALL rows from the item-level score table in this image.
-
-For each row, extract:
-- domain: One of "Adaptive", "Social-Emotional", "Motor", "Cognitive"
-- subdomain: The subdomain name (e.g., "Self-Care", "Gross Motor", "Attention and Memory")
-- skill: The skill description text
-- mastery: One of "MASTERED", "EMERGING", "FUTURE LEARNING OBJECTIVE"
-
-The table has columns: Domain:Subdomain | Item/Skill | Score columns with marks.
-- A mark in the first score column = MASTERED
-- A mark in the second score column = EMERGING
-- A mark in the third score column = FUTURE LEARNING OBJECTIVE
-
-If this page does NOT contain an item-level score table, return {"items": []}.
-
-Return ONLY valid JSON in this exact format, no other text:
-{"items": [{"domain": "...", "subdomain": "...", "skill": "...", "mastery": "..."}]}"""
-                            },
-                        ],
-                    }
-                ],
-            )
-
-            # Parse the JSON response
-            response_text = response.content[0].text.strip()
-            # Handle potential markdown code blocks in response
-            if response_text.startswith("```"):
-                response_text = response_text.split("\n", 1)[1]
-                if response_text.endswith("```"):
-                    response_text = response_text[:-3].strip()
-
-            result = json.loads(response_text)
-
-            for item in result.get("items", []):
-                domain = item.get("domain", "")
-                subdomain = item.get("subdomain", "")
-                skill = item.get("skill", "")
-                mastery = item.get("mastery", "")
-
-                # Validate domain
-                if domain not in data:
-                    continue
-
-                # Normalize subdomain name
-                subdomain = normalize_subdomain(subdomain)
-
-                # Normalize mastery status
-                mastery_upper = mastery.upper()
-                if "MASTERED" in mastery_upper:
-                    mastery_status = "MASTERED"
-                elif "EMERGING" in mastery_upper:
-                    mastery_status = "EMERGING"
-                elif "FUTURE" in mastery_upper:
-                    mastery_status = "FUTURE LEARNING OBJECTIVE"
-                else:
-                    continue
-
-                # Add to data structure
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_page = {
+            executor.submit(_process_page_vision, doc, page_num): page_num
+            for page_num in page_nums
+        }
+        for future in concurrent.futures.as_completed(future_to_page):
+            items = future.result()
+            # Merge thread-local items into the shared data dict (single-threaded here)
+            for item in items:
+                domain = item["domain"]
+                subdomain = item["subdomain"]
                 if subdomain not in data[domain]:
                     data[domain][subdomain] = []
-
-                if skill and len(skill) > 3:
-                    age, match_type = find_age_range(skill)
-                    data[domain][subdomain].append({
-                        "skill": skill,
-                        "mastery": mastery_status,
-                        "age": age,
-                        "match_type": match_type,
-                    })
-
-        except Exception as e:
-            print(f"Vision parsing error on page {page_num + 1}: {e}")
-            continue
+                data[domain][subdomain].append({
+                    "skill": item["skill"],
+                    "mastery": item["mastery"],
+                    "age": item["age"],
+                    "match_type": item["match_type"],
+                })
 
     doc.close()
     return data
@@ -621,6 +653,26 @@ def generate_html_tables(data, font_size='8', include_summaries=True):
     """
     html_output = []
 
+    # Pre-generate all domain summaries in parallel
+    domain_summaries = {}
+    if include_summaries:
+        domains_to_summarize = [
+            dn for dn in ["Adaptive", "Social-Emotional", "Motor", "Cognitive"]
+            if dn in data and data[dn]
+        ]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_domain = {
+                executor.submit(generate_domain_summary, dn, data[dn]): dn
+                for dn in domains_to_summarize
+            }
+            for future in concurrent.futures.as_completed(future_to_domain):
+                dn = future_to_domain[future]
+                try:
+                    domain_summaries[dn] = future.result()
+                except Exception as e:
+                    print(f"Summary generation error for {dn}: {e}")
+                    domain_summaries[dn] = None
+
     # Process each domain
     for domain_name in ["Adaptive", "Social-Emotional", "Motor", "Cognitive"]:
         if domain_name not in data or not data[domain_name]:
@@ -712,9 +764,9 @@ def generate_html_tables(data, font_size='8', include_summaries=True):
         domain_html += '  </table>\n'
         domain_html += '  </div>\n'
 
-        # Generate AI summary for the entire domain
+        # Insert pre-generated AI summary for the entire domain
         if include_summaries:
-            summary = generate_domain_summary(domain_name, data[domain_name])
+            summary = domain_summaries.get(domain_name)
             if summary:
                 domain_html += '  <div class="summaries-section">\n'
                 domain_html += f'    <div class="summary-box" id="summary_{domain_id}">\n'
