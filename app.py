@@ -9,9 +9,11 @@ import os
 import re
 import base64
 import concurrent.futures
+import threading
 from dotenv import load_dotenv
 import anthropic
 from rapidfuzz import fuzz, process
+import fitz  # PyMuPDF
 
 # Load environment variables from .env file
 load_dotenv()
@@ -53,6 +55,7 @@ SKILL_AGE_MAP, SKILLS_STRUCTURED = load_skills_mapping()
 
 # Track unmatched skills for debugging
 unmatched_skills = []
+unmatched_skills_lock = threading.Lock()
 
 
 def normalize_skill_text(text):
@@ -101,25 +104,29 @@ def find_age_range(skill_text, track_unmatched=True):
         return SKILL_AGE_MAP[matched_skill]['age'], 'fuzzy'
 
     # No match found - track it for debugging
-    if track_unmatched and skill_clean not in unmatched_skills:
-        unmatched_skills.append(skill_clean)
+    if track_unmatched:
+        with unmatched_skills_lock:
+            if skill_clean not in unmatched_skills:
+                unmatched_skills.append(skill_clean)
 
     return "", 'none'
 
 
 def get_match_stats():
     """Return statistics about skill matching."""
-    return {
-        'total_skills_in_json': len(SKILL_AGE_MAP),
-        'unmatched_skills': unmatched_skills.copy(),
-        'unmatched_count': len(unmatched_skills)
-    }
+    with unmatched_skills_lock:
+        return {
+            'total_skills_in_json': len(SKILL_AGE_MAP),
+            'unmatched_skills': unmatched_skills.copy(),
+            'unmatched_count': len(unmatched_skills)
+        }
 
 
 def clear_unmatched_skills():
     """Clear the unmatched skills list (call before each new PDF)."""
     global unmatched_skills
-    unmatched_skills = []
+    with unmatched_skills_lock:
+        unmatched_skills = []
 
 
 def generate_domain_summary(domain_name, subdomains_data):
@@ -132,13 +139,16 @@ def generate_domain_summary(domain_name, subdomains_data):
     for subdomain_name, skills in subdomains_data.items():
         mastered = []
         emerging = []
+        future = []
         for skill in skills:
             skill_text = skill['skill']
             if skill['mastery'] == 'MASTERED':
                 mastered.append(skill_text)
             elif skill['mastery'] == 'EMERGING':
                 emerging.append(skill_text)
-        subdomain_info[subdomain_name] = {'mastered': mastered, 'emerging': emerging}
+            elif skill['mastery'] == 'FUTURE LEARNING OBJECTIVE':
+                future.append(skill_text)
+        subdomain_info[subdomain_name] = {'mastered': mastered, 'emerging': emerging, 'future': future}
 
     # Build the data section
     data_section = ""
@@ -148,6 +158,8 @@ def generate_domain_summary(domain_name, subdomains_data):
             data_section += f"MASTERED: {', '.join(info['mastered'])}\n"
         if info['emerging']:
             data_section += f"EMERGING: {', '.join(info['emerging'])}\n"
+        if info['future']:
+            data_section += f"FUTURE LEARNING OBJECTIVES: {', '.join(info['future'])}\n"
 
     # Domain-specific prompts - plain text only, no markdown
     format_instructions = """
@@ -158,6 +170,7 @@ IMPORTANT: Write in plain text only. Do NOT use any markdown formatting like **b
         "Cognitive": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Cognitive subdomain (Attention & Memory, Reasoning & Academic Skills, Perception & Concepts).
 
 Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+After the mastered and emerging sentences, add a brief note about skills that are Future Learning Objectives.
 {format_instructions}
 
 {data_section}""",
@@ -165,6 +178,7 @@ Each paragraph should cover one subdomain. Start each paragraph with the subdoma
         "Adaptive": f"""Create 2 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Adaptive subdomain (Self Care, Personal Responsibility).
 
 Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+After the mastered and emerging sentences, add a brief note about skills that are Future Learning Objectives.
 {format_instructions}
 
 {data_section}""",
@@ -172,6 +186,7 @@ Each paragraph should cover one subdomain. Start each paragraph with the subdoma
         "Motor": f"""Create 3 paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Motor subdomain (Gross Motor, Fine Motor, Perceptual Motor).
 
 Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+After the mastered and emerging sentences, add a brief note about skills that are Future Learning Objectives.
 {format_instructions}
 
 {data_section}""",
@@ -179,6 +194,7 @@ Each paragraph should cover one subdomain. Start each paragraph with the subdoma
         "Social-Emotional": f"""Create paragraphs from this data by sorting skills into sentences for "mastered" and "emerging" for each Social-Emotional subdomain.
 
 Each paragraph should cover one subdomain. Start each paragraph with the subdomain name followed by a colon.
+After the mastered and emerging sentences, add a brief note about skills that are Future Learning Objectives.
 {format_instructions}
 
 {data_section}"""
@@ -326,8 +342,6 @@ def _process_page_vision(doc, page_num):
 
     Returns a list of parsed item dicts for this page, or empty list on error.
     """
-    import fitz  # PyMuPDF
-
     page = doc[page_num]
 
     # Render page to PNG image at 200 DPI for good quality
@@ -362,10 +376,10 @@ For each row, extract:
 - skill: The skill description text
 - mastery: One of "MASTERED", "EMERGING", "FUTURE LEARNING OBJECTIVE"
 
-The table has columns: Domain:Subdomain | Item/Skill | Score columns with marks.
-- A mark in the first score column = MASTERED
-- A mark in the second score column = EMERGING
-- A mark in the third score column = FUTURE LEARNING OBJECTIVE
+The table has 3 columns:
+- DOMAIN:SUBDOMAIN (e.g., "Adaptive: Self-Care")
+- SKILL (the skill description text)
+- MASTERY (text value: "MASTERED", "EMERGING", or "FUTURE LEARNING OBJECTIVE")
 
 If this page does NOT contain an item-level score table, return {"items": []}.
 
@@ -434,8 +448,6 @@ Return ONLY valid JSON in this exact format, no other text:
 
 def parse_bdi3_pdf_vision(file):
     """Parse BDI-3 PDF using Claude Haiku 4.5 Vision for accurate extraction."""
-    import fitz  # PyMuPDF
-
     data = {
         "Adaptive": {},
         "Social-Emotional": {},
