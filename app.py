@@ -187,7 +187,7 @@ Each paragraph should cover one subdomain. Start each paragraph with the subdoma
 
     try:
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=800,
             messages=[
                 {
@@ -345,7 +345,7 @@ def parse_bdi3_pdf_vision(file):
         # Send to Claude Haiku 4.5 Vision
         try:
             response = anthropic_client.messages.create(
-                model="claude-haiku-4-5-20250415",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=4096,
                 messages=[
                     {
