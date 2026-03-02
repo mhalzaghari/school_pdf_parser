@@ -368,20 +368,27 @@ def _process_page_vision(doc, page_num):
                         },
                         {
                             "type": "text",
-                            "text": """Extract ALL rows from the item-level score table in this image.
+                            "text": """Look at this page and determine if it contains an ITEM-LEVEL skill table.
 
-For each row, extract:
+An item-level skill table has these characteristics:
+- Rows with a DOMAIN:SUBDOMAIN column (e.g., "Adaptive: Self-Care")
+- A SKILL column with a specific skill description (a sentence describing what the child can do)
+- A MASTERY column with one of: "MASTERED", "EMERGING", or "FUTURE LEARNING OBJECTIVE"
+
+IGNORE and do NOT extract from these types of tables — they are NOT item-level skill tables:
+- Summary or overview tables (e.g., domain-level scores, DQ scores, scaled scores, percentiles)
+- Score charts, bar graphs, or percentile tables
+- Tables with columns like "Raw Score", "Scaled Score", "Percentile Rank", "DQ", "Age Equivalent"
+- Tables that show domain or subdomain totals rather than individual skill rows
+- Any table that does not have individual skill descriptions with mastery status
+
+If this page does NOT contain an item-level skill table, return {"items": []}.
+
+If it DOES contain an item-level skill table, extract ALL rows. For each row, extract:
 - domain: One of "Adaptive", "Social-Emotional", "Motor", "Cognitive"
 - subdomain: The subdomain name (e.g., "Self-Care", "Gross Motor", "Attention and Memory")
 - skill: The skill description text
 - mastery: One of "MASTERED", "EMERGING", "FUTURE LEARNING OBJECTIVE"
-
-The table has 3 columns:
-- DOMAIN:SUBDOMAIN (e.g., "Adaptive: Self-Care")
-- SKILL (the skill description text)
-- MASTERY (text value: "MASTERED", "EMERGING", or "FUTURE LEARNING OBJECTIVE")
-
-If this page does NOT contain an item-level score table, return {"items": []}.
 
 Return ONLY valid JSON in this exact format, no other text:
 {"items": [{"domain": "...", "subdomain": "...", "skill": "...", "mastery": "..."}]}"""
@@ -462,8 +469,8 @@ def parse_bdi3_pdf_vision(file):
     # Open PDF with PyMuPDF
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    # Process pages 4-13 (0-indexed: 3-12) in parallel
-    page_nums = list(range(3, min(13, len(doc))))
+    # Process every page — let the AI decide what's relevant
+    page_nums = list(range(len(doc)))
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_page = {
