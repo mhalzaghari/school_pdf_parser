@@ -7,6 +7,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 import io
 import os
 import re
+import base64
 from dotenv import load_dotenv
 import anthropic
 from rapidfuzz import fuzz, process
@@ -227,8 +228,11 @@ def convert_pdf():
         # Clear unmatched skills tracking before parsing new PDF
         clear_unmatched_skills()
 
-        # Parse PDF
-        pdf_data = parse_bdi3_pdf(file)
+        # Parse PDF - use vision if API key available, fallback to pdfplumber
+        if anthropic_client:
+            pdf_data = parse_bdi3_pdf_vision(file)
+        else:
+            pdf_data = parse_bdi3_pdf(file)
 
         # Generate HTML tables with font size and optional summaries
         html_tables = generate_html_tables(pdf_data, font_size, include_summaries)
@@ -308,6 +312,132 @@ def normalize_subdomain(subdomain_text):
 
     # Return as-is if no match
     return subdomain_text
+
+
+def parse_bdi3_pdf_vision(file):
+    """Parse BDI-3 PDF using Claude Haiku 4.5 Vision for accurate extraction."""
+    import fitz  # PyMuPDF
+
+    data = {
+        "Adaptive": {},
+        "Social-Emotional": {},
+        "Motor": {},
+        "Cognitive": {}
+    }
+
+    # Read PDF bytes
+    pdf_bytes = file.read()
+    file.seek(0)  # Reset file pointer for potential fallback use
+
+    # Open PDF with PyMuPDF
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+    # Process pages 4-13 (0-indexed: 3-12)
+    for page_num in range(3, min(13, len(doc))):
+        page = doc[page_num]
+
+        # Render page to PNG image at 200 DPI for good quality
+        mat = fitz.Matrix(200 / 72, 200 / 72)
+        pix = page.get_pixmap(matrix=mat)
+        img_bytes = pix.tobytes("png")
+        img_base64 = base64.standard_b64encode(img_bytes).decode("utf-8")
+
+        # Send to Claude Haiku 4.5 Vision
+        try:
+            response = anthropic_client.messages.create(
+                model="claude-haiku-4-5-20250415",
+                max_tokens=4096,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/png",
+                                    "data": img_base64,
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": """Extract ALL rows from the item-level score table in this image.
+
+For each row, extract:
+- domain: One of "Adaptive", "Social-Emotional", "Motor", "Cognitive"
+- subdomain: The subdomain name (e.g., "Self-Care", "Gross Motor", "Attention and Memory")
+- skill: The skill description text
+- mastery: One of "MASTERED", "EMERGING", "FUTURE LEARNING OBJECTIVE"
+
+The table has columns: Domain:Subdomain | Item/Skill | Score columns with marks.
+- A mark in the first score column = MASTERED
+- A mark in the second score column = EMERGING
+- A mark in the third score column = FUTURE LEARNING OBJECTIVE
+
+If this page does NOT contain an item-level score table, return {"items": []}.
+
+Return ONLY valid JSON in this exact format, no other text:
+{"items": [{"domain": "...", "subdomain": "...", "skill": "...", "mastery": "..."}]}"""
+                            },
+                        ],
+                    }
+                ],
+            )
+
+            # Parse the JSON response
+            response_text = response.content[0].text.strip()
+            # Handle potential markdown code blocks in response
+            if response_text.startswith("```"):
+                response_text = response_text.split("\n", 1)[1]
+                if response_text.endswith("```"):
+                    response_text = response_text[:-3].strip()
+
+            result = json.loads(response_text)
+
+            for item in result.get("items", []):
+                domain = item.get("domain", "")
+                subdomain = item.get("subdomain", "")
+                skill = item.get("skill", "")
+                mastery = item.get("mastery", "")
+
+                # Validate domain
+                if domain not in data:
+                    continue
+
+                # Normalize subdomain name
+                subdomain = normalize_subdomain(subdomain)
+
+                # Normalize mastery status
+                mastery_upper = mastery.upper()
+                if "MASTERED" in mastery_upper:
+                    mastery_status = "MASTERED"
+                elif "EMERGING" in mastery_upper:
+                    mastery_status = "EMERGING"
+                elif "FUTURE" in mastery_upper:
+                    mastery_status = "FUTURE LEARNING OBJECTIVE"
+                else:
+                    continue
+
+                # Add to data structure
+                if subdomain not in data[domain]:
+                    data[domain][subdomain] = []
+
+                if skill and len(skill) > 3:
+                    age, match_type = find_age_range(skill)
+                    data[domain][subdomain].append({
+                        "skill": skill,
+                        "mastery": mastery_status,
+                        "age": age,
+                        "match_type": match_type,
+                    })
+
+        except Exception as e:
+            print(f"Vision parsing error on page {page_num + 1}: {e}")
+            continue
+
+    doc.close()
+    return data
+
 
 def parse_bdi3_pdf(file):
     """Parse BDI-3 PDF and extract domain, subdomain, skill, and mastery data."""
