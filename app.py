@@ -187,7 +187,7 @@ Each paragraph should cover one subdomain. Start each paragraph with the subdoma
 
     try:
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=800,
             messages=[
                 {
@@ -246,6 +246,12 @@ def convert_pdf():
             for domain in pdf_data.values()
             for skills in domain.values()
         )
+
+        if total_skills == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No skills were extracted from this PDF. Please make sure you are uploading a BDI-3 Family Report PDF. If the problem persists, try again or contact support.'
+            }), 400
 
         # Return HTML with match statistics
         return jsonify({
