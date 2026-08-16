@@ -21,5 +21,5 @@ EXPOSE 5000
 ENV PORT=5000
 
 # Run the application
-CMD gunicorn --bind 0.0.0.0:$PORT --timeout 120 app:app
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --timeout 120 app:app"]
 
