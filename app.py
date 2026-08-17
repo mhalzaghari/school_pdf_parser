@@ -725,20 +725,33 @@ def generate_html_tables(data, font_size='8', include_summaries=True):
                     age, _ = find_age_range(skill_data['skill'], track_unmatched=False)
                 skills_with_ages.append({**skill_data, 'age': age})
 
-            # Sort by age (using a rough ordering)
-            age_order = ['(0-5mths)', '(0-11mths)', '(0-11 mths)', '(6mths-11mths)',
-                        '(12mths-17mths)', '(12-17mths)', '(12-23mths)', '(12-23 mths)',
-                        '(18mths-2yrs,11mths)', '(18-23 mths)', '(18-23mths)',
-                        '(2 yrs)', '(2-3 yrs)', '(2yrs,6mths-3yrs,11mths)',
-                        '(3 yrs)', '(4 yrs)', '(4-5 yrs)', '(5 yrs)',
-                        '(5-7 yrs)', '(6 yrs)', '(6-7 yrs)', '(7 yrs)', '']
-
+            # Sort by the START of each age range, in months, so groups are
+            # always chronological regardless of spacing/wording variations.
             def age_sort_key(item):
-                age = item.get('age', '')
-                try:
-                    return age_order.index(age)
-                except ValueError:
-                    return len(age_order)
+                age = (item.get('age') or '').lower()
+                if not age:
+                    return 10**6
+                has_month = bool(re.search(r'mth|month', age))
+                has_year = bool(re.search(r'yr|year', age))
+                start = re.split(r'-|to', age, maxsplit=1)[0]
+                yrs = re.search(r'([0-9]+)\s*(?:yrs|yr|years|year)', start)
+                mths = re.search(r'([0-9]+)\s*(?:mths|mth|months|month)', start)
+                if yrs or mths:
+                    total = 0
+                    if yrs:
+                        total += int(yrs.group(1)) * 12
+                    if mths:
+                        total += int(mths.group(1))
+                    return total
+                # Start number had no explicit unit (e.g. '2-3 yrs', '0-11 mths');
+                # infer the unit from the rest of the string.
+                num = re.search(r'([0-9]+)', start)
+                if num:
+                    n = int(num.group(1))
+                    if has_year and not has_month:
+                        return n * 12
+                    return n
+                return 10**6
 
             skills_with_ages.sort(key=age_sort_key)
 
