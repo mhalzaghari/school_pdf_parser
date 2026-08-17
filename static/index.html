@@ -554,9 +554,9 @@
                 <div class="setting-group">
                     <label class="setting-label">Font Size</label>
                     <div class="font-selector">
-                        <button class="font-btn active" data-size="8">8pt</button>
+                        <button class="font-btn" data-size="8">8pt</button>
                         <button class="font-btn" data-size="10">10pt</button>
-                        <button class="font-btn" data-size="12">12pt</button>
+                        <button class="font-btn active" data-size="12">12pt</button>
                         <button class="font-btn" data-size="14">14pt</button>
                     </div>
                 </div>
@@ -603,7 +603,7 @@
 
     <script>
         let selectedFile = null;
-        let selectedFontSize = 8;
+        let selectedFontSize = 12;
 
         // Font size selector
         document.querySelectorAll('.font-btn').forEach(btn => {
