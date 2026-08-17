@@ -236,8 +236,8 @@ def convert_pdf():
         if not file.filename.endswith('.pdf'):
             return jsonify({'success': False, 'error': 'File must be a PDF'}), 400
 
-        # Get font size from request (default to 12pt Times)
-        font_size = request.form.get('font_size', '12')
+        # Get font size from request (default to 8pt Arial)
+        font_size = request.form.get('font_size', '8')
 
         # Get AI summary option (default to true if API key is available)
         include_summaries = request.form.get('include_summaries', 'true').lower() == 'true'
@@ -661,7 +661,7 @@ def parse_bdi3_pdf(file):
 
     return data
 
-def generate_html_tables(data, font_size='12', include_summaries=True):
+def generate_html_tables(data, font_size='8', include_summaries=True):
     """Generate HTML tables for display on the website.
 
     Output format matches the template:
@@ -707,7 +707,7 @@ def generate_html_tables(data, font_size='12', include_summaries=True):
         domain_html += f'  <div class="table-container">\n'
 
         # Create ONE table for the entire domain with all subdomains
-        domain_html += f'  <table class="result-table" style="font-family: \'Times New Roman\', Times, serif; font-size: {font_size}pt;">\n'
+        domain_html += f'  <table class="result-table" style="font-family: Arial, sans-serif; font-size: {font_size}pt;">\n'
         domain_html += '    <tbody>\n'
 
         # Add each subdomain as rows within the same table
